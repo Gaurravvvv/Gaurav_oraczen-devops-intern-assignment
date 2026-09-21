@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -r app/requirements.txt
+          pip install ruff
+
+      - name: Lint with Ruff
+        run: ruff check app/ --ignore B008,F401,I001,UP045
+
+  docker-build-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t notes-api:${{ github.sha }} app
+
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: notes-api:${{ github.sha }}
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+
+  helm-lint-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.17.1
+
+      - name: Build dependencies & lint chart
+        run: |
+          helm dependency build helm/notes-api
+          helm lint helm/notes-api
+
+      - name: Render manifests & run Trivy config scan
+        run: |
+          helm template helm/notes-api -f helm/notes-api/values-prod.yaml > rendered.yaml
+
+      - name: Run Trivy config scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: 'rendered.yaml'
+          format: 'table'
+          exit-code: '0'
+          severity: 'CRITICAL,HIGH'

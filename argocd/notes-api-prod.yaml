@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: notes-api-prod
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Gaurravvvv/Gaurav_oraczen-devops-intern-assignment.git
+    targetRevision: main
+    path: helm/notes-api
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-prod.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: notes-prod
+  syncPolicy:
+    automated:
+      prune: false     # Safer for prod: prevents accidental cascade deletion of persistent storage or secrets
+      selfHeal: true   # Remediates configuration drift back to git source of truth
+    syncOptions:
+      - CreateNamespace=true

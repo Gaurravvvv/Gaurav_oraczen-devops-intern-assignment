@@ -1,0 +1,52 @@
+replicaCount: 1
+
+image:
+  repository: notes-api
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+serviceAccount:
+  create: true
+  name: ""
+
+service:
+  type: ClusterIP
+  port: 8000
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+probes:
+  liveness:
+    path: /healthz
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  readiness:
+    path: /readyz
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+config:
+  postgresPort: "5432"
+
+# Bitnami PostgreSQL subchart configuration
+postgresql:
+  enabled: true
+  auth:
+    database: notes
+    username: notes
+    password: ""
+  primary:
+    persistence:
+      enabled: false
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80

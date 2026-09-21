@@ -1,0 +1,6 @@
+1. Port-forward the service to your local machine:
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ .Release.Name }}-notes-api 8000:{{ .Values.service.port }}
+
+2. Verify the application:
+  curl http://localhost:8000/healthz   # Liveness (process is running)
+  curl http://localhost:8000/readyz     # Readiness (database is connected)

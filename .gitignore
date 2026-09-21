@@ -5,3 +5,7 @@ venv/
 *.db
 .env
 .DS_Store
+.bin/
+helm/**/charts/*.tgz
+.pytest_cache/
+.ruff_cache/

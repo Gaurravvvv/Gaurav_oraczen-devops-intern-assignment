@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-notes-api-config
+  labels:
+    app: notes-api
+    release: {{ .Release.Name }}
+data:
+  POSTGRES_HOST: "{{ .Release.Name }}-postgresql"
+  POSTGRES_PORT: {{ .Values.config.postgresPort | default "5432" | quote }}
+  POSTGRES_DB: {{ .Values.postgresql.auth.database | default "notes" | quote }}
+  POSTGRES_USER: {{ .Values.postgresql.auth.username | default "notes" | quote }}
