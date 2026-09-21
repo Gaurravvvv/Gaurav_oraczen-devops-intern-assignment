@@ -105,9 +105,10 @@ A GitHub Actions workflow in `.github/workflows/ci.yaml` that triggers on pull r
    - Installs dependencies and `ruff`.
    - Runs `ruff check app/` to check code style and enforce linting standards.
 2. **`docker-build-scan`**:
-   - Builds the Docker image and tags it with the commit SHA (`notes-api:${{ github.sha }}`).
+   - Builds the Docker image tagged with the commit SHA and `latest`.
    - Runs `aquasecurity/trivy-action` in `image` mode to scan for vulnerabilities.
    - **Severity Gate**: Fails the pipeline (`exit-code: 1`) on any `CRITICAL` or `HIGH` vulnerabilities.
+   - **Registry Push**: On merges to `main`, logs in to GitHub Container Registry (GHCR) and pushes the scanned image.
 3. **`helm-lint-scan`**:
    - Installs Helm v3.
    - Runs `helm dependency build` and `helm lint`.
