@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: ghcr.io/gaurravvvv/notes-api
+  repository: ghcr.io/gaurravvvv/gaurav_oraczen-devops-intern-assignment/notes-api
   tag: latest
   pullPolicy: Always
 
