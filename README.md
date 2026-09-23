@@ -1,5 +1,8 @@
 # Notes API — DevOps Assignment Implementation
 
+**Author:** Gaurav Vibhandik  
+**LinkedIn:** [linkedin.com/in/gaurravvvv](https://www.linkedin.com/in/gaurravvvv/) | **LeetCode:** [leetcode.com/u/bis9NoCqXN](https://leetcode.com/u/bis9NoCqXN/)
+
 This repository contains my complete implementation for the Notes API DevOps assignment. Below is the step-by-step walkthrough of how I built, tested, and verified each task from Part 1 to Part 4.
 
 > Detailed design decisions, trade-offs, and screenshots are documented in **[WRITEUP.md](WRITEUP.md)**.
@@ -139,3 +142,12 @@ curl http://localhost:8000/notes
 ├── README.md                    # Step-by-step implementation guide
 └── WRITEUP.md                   # Full design rationale, trade-offs, and answers
 ```
+
+---
+
+## Author
+
+- **Name:** Gaurav Vibhandik
+- **LinkedIn:** [linkedin.com/in/gaurravvvv](https://www.linkedin.com/in/gaurravvvv/)
+- **LeetCode:** [leetcode.com/u/bis9NoCqXN](https://leetcode.com/u/bis9NoCqXN/)
+

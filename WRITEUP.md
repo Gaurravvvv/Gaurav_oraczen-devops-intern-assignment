@@ -1,5 +1,8 @@
 # Notes API — DevOps Submission Write-Up
 
+**Author:** Gaurav Vibhandik  
+**LinkedIn:** [linkedin.com/in/gaurravvvv](https://www.linkedin.com/in/gaurravvvv/) | **LeetCode:** [leetcode.com/u/bis9NoCqXN](https://leetcode.com/u/bis9NoCqXN/)
+
 Technical documentation covering containerization, Helm packaging with Bitnami PostgreSQL subchart dependency, CI workflow with security gates, ArgoCD GitOps deployment, and production considerations.
 
 ---
