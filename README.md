@@ -38,17 +38,17 @@ docker images notes-api:local
 
 ## Step 2: Creating the Helm Chart with Database Dependency (Part 2)
 
-I packaged the application into a Helm chart under `helm/notes-api/` and consumed the official Bitnami PostgreSQL chart as a subchart dependency.
+I packaged the application into a Helm chart under `helm/notes-api/` and consumed a community PostgreSQL chart as a subchart dependency.
 
 ### What I did:
-- Declared `bitnamicharts/postgresql`  in `Chart.yaml` under `dependencies`.
+- Declared PostgreSQL subchart dependency in `Chart.yaml`.
 - Wired the database password directly from the subchart's generated Secret (`{{ .Release.Name }}-postgresql`, key `password`) via `secretKeyRef` in `deployment.yaml` so no passwords exist in plaintext in git.
 - Split configuration between base defaults (`values.yaml`), development overrides (`values-dev.yaml` — 1 replica, ephemeral storage), and production overrides (`values-prod.yaml` — 3 replicas, 10Gi persistent disk, HPA enabled).
 - Added `hpa.yaml` for autoscaling and `NOTES.txt` for post-install instructions.
 
 ### Commands :
 ```bash
-# 1. Downloaded and built the Bitnami PostgreSQL subchart dependency
+# 1. Downloaded and built the PostgreSQL subchart dependency
 helm dependency build helm/notes-api
 
 # 2. Linted the chart to verify template syntax and packaging
@@ -133,7 +133,7 @@ curl http://localhost:8000/notes
 │   ├── notes-api-dev.yaml       # ArgoCD Application manifest for dev
 │   └── notes-api-prod.yaml      # ArgoCD Application manifest for prod
 ├── helm/notes-api/
-│   ├── Chart.yaml               # Chart metadata & Bitnami PostgreSQL subchart dependency
+│   ├── Chart.yaml               # Chart metadata & PostgreSQL subchart dependency
 │   ├── values.yaml              # Base configuration defaults
 │   ├── values-dev.yaml          # Development environment overrides
 │   ├── values-prod.yaml         # Production environment overrides

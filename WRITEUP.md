@@ -3,7 +3,7 @@
 **Author:** Gaurav Vibhandik  
 **LinkedIn:** [linkedin.com/in/gaurravvvv](https://www.linkedin.com/in/gaurravvvv/) | **LeetCode:** [leetcode.com/u/bis9NoCqXN](https://leetcode.com/u/bis9NoCqXN/)
 
-Technical documentation covering containerization, Helm packaging with Bitnami PostgreSQL subchart dependency, CI workflow with security gates, ArgoCD GitOps deployment, and production considerations.
+Technical documentation covering containerization, Helm packaging with PostgreSQL subchart dependency, CI workflow with security gates, ArgoCD GitOps deployment, and production considerations.
 
 ---
 
@@ -63,14 +63,14 @@ docker run --rm notes-api:local whoami            # appuser (UID 1000)
 
 ### Chart Structure
 Under `helm/notes-api/`:
-- `Chart.yaml`: Declares `bitnamicharts/postgresql` (v15.5.37) as an OCI dependency.
+- `Chart.yaml`: Declares PostgreSQL (v15.5.37) as an OCI subchart dependency.
 - `templates/`: `deployment.yaml`, `service.yaml`, `configmap.yaml`, `serviceaccount.yaml`, `hpa.yaml`, and `NOTES.txt`.
 - Environment configs: `values.yaml` (base), `values-dev.yaml` (dev), and `values-prod.yaml` (prod).
 
 ### PostgreSQL Subchart Secret Wiring (Part 2, Point 3)
 *(Referencing the subchart's generated Secret instead of duplicating passwords in values.yaml)*
 
-The Bitnami subchart automatically creates a Secret `<release-name>-postgresql` containing the DB password. The app reads this password directly via `secretKeyRef` rather than duplicating credentials in `values.yaml`:
+The PostgreSQL subchart automatically creates a Secret `<release-name>-postgresql` containing the DB password. The app reads this password directly via `secretKeyRef` rather than duplicating credentials in `values.yaml`:
 
 ```yaml
 env:
@@ -246,7 +246,7 @@ All three jobs pass cleanly on pull requests and pushes to `main`:
 - `notes-api-dev` Synced and Healthy in ArgoCD UI:
   ![ArgoCD Success](images/ArgoCD_Success.png)
 
-- Full Kubernetes resource tree (Deployment, Service, ConfigMap, Bitnami PostgreSQL subchart):
+- Full Kubernetes resource tree (Deployment, Service, ConfigMap, PostgreSQL subchart):
   ![ArgoCD Resource Diagram](images/ArgoCD_Success_Diagram.png)
 
 #### 3. Pod Health & API Verification

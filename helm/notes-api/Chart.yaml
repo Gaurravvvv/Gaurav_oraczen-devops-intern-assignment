@@ -1,6 +1,6 @@
 apiVersion: v2
 name: notes-api
-description: A production-ready Helm chart for FastAPI Notes API with Bitnami PostgreSQL subchart dependency
+description: A production-ready Helm chart for FastAPI Notes API with PostgreSQL subchart dependency
 type: application
 version: 0.1.0
 appVersion: "1.0.0"

@@ -34,7 +34,7 @@ probes:
 config:
   postgresPort: "5432"
 
-# Bitnami PostgreSQL subchart configuration
+# PostgreSQL subchart configuration
 postgresql:
   enabled: true
   image:
