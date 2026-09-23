@@ -1,8 +1,9 @@
 replicaCount: 1
 
 image:
-  tag: "dev"
-  pullPolicy: IfNotPresent
+  repository: ghcr.io/gaurravvvv/notes-api
+  tag: latest
+  pullPolicy: Always
 
 resources:
   requests:
