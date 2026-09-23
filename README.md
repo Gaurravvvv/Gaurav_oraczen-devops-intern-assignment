@@ -1,32 +1,141 @@
-# Notes API — DevOps Intern Assignment
+# Notes API — DevOps Assignment Implementation
 
-A minimal FastAPI + PostgreSQL backend. This repo is your starting point — the
-Python app is done and working; your job is everything around it
-(containerization, Helm, CI/CD, GitOps). Full instructions: **[ASSIGNMENT.md](ASSIGNMENT.md)**.
+This repository contains my complete implementation for the Notes API DevOps assignment. Below is the step-by-step walkthrough of how I built, tested, and verified each task from Part 1 to Part 4.
 
-## Running the app locally (no Docker) — sanity check only
+> Detailed design decisions, trade-offs, and screenshots are documented in **[WRITEUP.md](WRITEUP.md)**.
 
-You'll need a local Postgres, or point it at any reachable one:
+---
 
+## Step 1: Containerizing the Application (Part 1)
+
+I containerized the FastAPI application using a multi-stage Docker build to keep the image small and secure.
+
+### What I did:
+- Created `app/Dockerfile` with a builder stage (to install Python packages into `~/.local`) and a minimal runtime stage based on `python:3.12-slim`.
+- Created an unprivileged user `appuser` (UID 1000) so the container never runs as root.
+- Created `app/.dockerignore` to keep virtual environments, git files, and cache files out of the image.
+
+### Commands :
 ```bash
-cd app
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+# 1. Built the Docker image locally
+docker build -t notes-api:local app
 
-cp .env.example .env   # edit if your local Postgres differs
-export $(cat .env | xargs)
+# 2. Verified that the container runs as non-root
+docker run --rm notes-api:local whoami
+# Output: appuser
 
-uvicorn main:app --reload
+docker run --rm notes-api:local id
+# Output: uid=1000(appuser) gid=1000(appuser) groups=1000(appuser)
+
+# 3. Checked image size (measures ~205MB)
+docker images notes-api:local
 ```
 
-Then:
+---
+
+## Step 2: Creating the Helm Chart with Database Dependency (Part 2)
+
+I packaged the application into a Helm chart under `helm/notes-api/` and consumed the official Bitnami PostgreSQL chart as a subchart dependency.
+
+### What I did:
+- Declared `bitnamicharts/postgresql`  in `Chart.yaml` under `dependencies`.
+- Wired the database password directly from the subchart's generated Secret (`{{ .Release.Name }}-postgresql`, key `password`) via `secretKeyRef` in `deployment.yaml` so no passwords exist in plaintext in git.
+- Split configuration between base defaults (`values.yaml`), development overrides (`values-dev.yaml` — 1 replica, ephemeral storage), and production overrides (`values-prod.yaml` — 3 replicas, 10Gi persistent disk, HPA enabled).
+- Added `hpa.yaml` for autoscaling and `NOTES.txt` for post-install instructions.
+
+### Commands :
 ```bash
-curl localhost:8000/healthz
-curl localhost:8000/readyz
-curl -X POST localhost:8000/notes -H 'content-type: application/json' \
-  -d '{"title":"hello","content":"world"}'
-curl localhost:8000/notes
+# 1. Downloaded and built the Bitnami PostgreSQL subchart dependency
+helm dependency build helm/notes-api
+
+# 2. Linted the chart to verify template syntax and packaging
+helm lint helm/notes-api
+# Output: 1 chart(s) linted, 0 chart(s) failed
+
+# 3. Verified rendered manifests for dev and prod
+helm template notes-dev helm/notes-api -f helm/notes-api/values-dev.yaml
+helm template notes-prod helm/notes-api -f helm/notes-api/values-prod.yaml
 ```
 
-This step is optional — it's just to help you understand the app before you
-containerize it. The real deliverables start in `ASSIGNMENT.md`.
+---
+
+## Step 3: Automated CI Pipeline with GitHub Actions (Part 3)
+
+Built a GitHub Actions workflow in `.github/workflows/ci.yaml` that runs automatically on pull requests and pushes to `main`.
+
+### What I did:
+- **Lint job**: Installs dependencies and runs `ruff check app/` to enforce Python code quality.
+- **Docker Build & Scan job**: Builds the image tagged with the commit SHA, runs Trivy vulnerability scan with a strict severity gate (`exit-code: 1` on `CRITICAL,HIGH`), and pushes the verified image to GitHub Container Registry (GHCR) on `main`.
+- **Helm Lint & Scan job**: Builds chart dependencies, lints the chart, renders manifests, and runs Trivy in `config` mode to catch Kubernetes misconfigurations.
+
+### Verification:
+All three jobs run in parallel and pass cleanly in GitHub Actions (see green status in `WRITEUP.md`).
+
+---
+
+## Step 4: GitOps Deployment with ArgoCD (Part 4)
+
+I deployed the application using GitOps with ArgoCD on a local multi-node Kind cluster.
+
+### What I did:
+- Created ArgoCD Application manifests for development (`argocd/notes-api-dev.yaml`) and production (`argocd/notes-api-prod.yaml`).
+- Configured sync policies: enabled automated pruning in Dev for fast cleanup, disabled pruning in Prod to protect persistent data and secrets, and enabled `selfHeal` across both to prevent manual drift.
+
+### Commands :
+```bash
+# 1. Created the local Kind cluster
+kind create cluster --name notes-cluster
+
+# 2. Installed ArgoCD
+kubectl create namespace argocd
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+# 3. Deployed the application via ArgoCD
+kubectl apply -f argocd/notes-api-dev.yaml
+
+# 4. Verified pod status (both app and postgresql running 1/1)
+kubectl get pods -n notes-dev
+# Output:
+# notes-api-dev-notes-api-xxxx   1/1   Running
+# notes-api-dev-postgresql-0    1/1   Running
+
+# 5. Port-forwarded the service to test locally
+kubectl port-forward svc/notes-api-dev-notes-api -n notes-dev 8000:8000
+
+# 6. Tested health and readiness probes
+curl http://localhost:8000/healthz   # {"status":"ok"}
+curl http://localhost:8000/readyz    # {"status":"ready"}
+
+# 7. Tested database CRUD functionality
+curl -X POST http://localhost:8000/notes \
+  -H "Content-Type: application/json" \
+  -d '{"title":"First Note","content":"Deployed via ArgoCD"}'
+
+curl http://localhost:8000/notes
+```
+
+---
+
+## Project Structure
+
+```
+├── .github/workflows/
+│   └── ci.yaml                  # GitHub Actions CI pipeline (Lint, Trivy, GHCR push)
+├── app/
+│   ├── Dockerfile               # Multi-stage, non-root Python 3.12 containerfile
+│   ├── .dockerignore            # Build context exclusions
+│   ├── main.py                  # FastAPI application code
+│   └── requirements.txt         # Pinned Python dependencies
+├── argocd/
+│   ├── notes-api-dev.yaml       # ArgoCD Application manifest for dev
+│   └── notes-api-prod.yaml      # ArgoCD Application manifest for prod
+├── helm/notes-api/
+│   ├── Chart.yaml               # Chart metadata & Bitnami PostgreSQL subchart dependency
+│   ├── values.yaml              # Base configuration defaults
+│   ├── values-dev.yaml          # Development environment overrides
+│   ├── values-prod.yaml         # Production environment overrides
+│   └── templates/               # Kubernetes Deployment, Service, ConfigMap, HPA
+├── images/                      # Execution and verification screenshots
+├── README.md                    # Step-by-step implementation guide
+└── WRITEUP.md                   # Full design rationale, trade-offs, and answers
+```
