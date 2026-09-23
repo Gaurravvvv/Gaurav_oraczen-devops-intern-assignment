@@ -19,6 +19,8 @@ The goal of Part 1 is to package the FastAPI Notes API into an efficient, secure
 
 ### Complete Dockerfile with Line-by-Line Breakdown
 
+![Dockerfile Screenshot](images/DockerFile.png)
+
 Here is the complete `app/Dockerfile` with detailed inline comments explaining the purpose of each instruction:
 
 ```dockerfile
@@ -233,6 +235,11 @@ A GitHub Actions workflow in `.github/workflows/ci.yaml` that triggers on pull r
    - Installs Helm v3.
    - Runs `helm dependency build` and `helm lint`.
    - Renders the manifests using `helm template` and runs Trivy in `config` mode to scan for Kubernetes misconfigurations (e.g. containers running as root, missing limits).
+
+### CI Verification
+All three jobs (`lint`, `docker-build-scan`, and `helm-lint-scan`) run and pass automatically on pull requests and commits to `main`:
+
+![CI Builds Success](images/CI_Builds_Success.png)
 
 ---
 
