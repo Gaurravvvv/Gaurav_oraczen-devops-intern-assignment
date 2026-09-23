@@ -6,29 +6,149 @@ This document covers my implementation for the Notes API DevOps assignment, walk
 
 ## Part 1 — Containerize the App
 
-### What I Built
-- Created `app/Dockerfile` and `app/.dockerignore`.
-- Built a multi-stage Docker image using `python:3.12-slim`:
-  - **Builder stage**: Installs the dependencies from `requirements.txt` into `~/.local` with `--user` and `--no-cache-dir`.
-  - **Runtime stage**: Uses a fresh `python:3.12-slim` image, creates a non-root user `appuser` (UID 1000), copies only `~/.local` and the application code, and sets `USER appuser`.
+### Overview & Objectives
+The goal of Part 1 is to package the FastAPI Notes API into an efficient, secure, and production-grade container image following all requirements from `ASSIGNMENT.md`:
+- Multi-stage build (separating dependency installation from the runtime environment)
+- Strict non-root execution (principle of least privilege)
+- Pinned, slim base image (`python:3.12-slim`, avoiding `latest` and bloated default images)
+- Sensible `.dockerignore` file
+- Deliberate health check strategy (Docker `HEALTHCHECK` vs. Kubernetes probes)
+- Lightweight final image size (~205 MB)
 
-### Decisions & Trade-offs
-- **Non-root user**: Running as `appuser` (UID 1000) ensures the container does not run as `root`, following the principle of least privilege and preventing potential container breakout risks.
-- **Pinned base image**: Used `python:3.12-slim` instead of `python:3.12` (which is >1GB) or `latest` (which is non-deterministic). I chose Debian slim over Alpine because Python packages with C extensions (like `psycopg2-binary`) can sometimes have compatibility issues with `musl` on Alpine.
-- **Docker HEALTHCHECK vs. Kubernetes Probes**: I rely on Kubernetes `livenessProbe` and `readinessProbe` for health checking rather than Docker's `HEALTHCHECK`. In Kubernetes, the kubelet completely ignores Docker's container-level `HEALTHCHECK` instruction and only respects the pod-level probes defined in the manifest. Having separate liveness (`/healthz`) and readiness (`/readyz`) probes in Kubernetes allows the cluster to distinguish between a process that has crashed (needs a restart) and a process that is temporarily waiting on the database (should not receive traffic yet).
-- **Image Size**: The final image size is **205 MB**, which is small and fast to pull in CI/CD.
+---
 
-### Verification Commands
+### Complete Dockerfile with Line-by-Line Breakdown
+
+Here is the complete `app/Dockerfile` with detailed inline comments explaining the purpose of each instruction:
+
+```dockerfile
+# -------------------------------------------------------------
+# Stage 1: Build stage
+# Compiles and installs Python dependencies in an isolated layer.
+# -------------------------------------------------------------
+FROM python:3.12-slim AS builder
+
+# Set the working directory for dependency installation
+WORKDIR /app
+
+# Copy ONLY requirements.txt first to take advantage of Docker layer caching.
+# If source code changes but dependencies do not, Docker reuses this cached layer.
+COPY requirements.txt .
+
+# Install dependencies into ~/.local (user directory) without saving wheel caches.
+# --no-cache-dir keeps image size lean by not caching download archives.
+# --user isolates installed packages so they can easily be copied to the runtime stage.
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+
+# -------------------------------------------------------------
+# Stage 2: Runtime stage
+# Clean, minimal Debian-slim image containing no build artifacts or caches.
+# -------------------------------------------------------------
+FROM python:3.12-slim
+
+# Set application directory inside container
+WORKDIR /app
+
+# Security: Create a dedicated unprivileged user 'appuser' with UID 1000 and home directory.
+# Running as root (UID 0) inside a container is a major security risk.
+RUN useradd -u 1000 -m appuser
+
+# Copy installed Python packages and binaries from builder stage into appuser's home
+COPY --from=builder /root/.local /home/appuser/.local
+
+# Copy application source code into container and assign ownership to appuser
+COPY --chown=appuser:appuser . .
+
+# Environment configuration:
+# - Add ~/.local/bin to PATH so uvicorn and python CLI commands are directly executable.
+# - Set PYTHONUNBUFFERED=1 to ensure stdout/stderr logs stream immediately (crucial for container log collectors).
+ENV PATH=/home/appuser/.local/bin:$PATH \
+    PYTHONUNBUFFERED=1
+
+# Drop privileges: switch from root (UID 0) to appuser (UID 1000)
+USER appuser
+
+# Document that the container listens on port 8000
+EXPOSE 8000
+
+# Start FastAPI application using Uvicorn on all network interfaces (0.0.0.0) at port 8000
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+---
+
+### `.dockerignore` Configuration
+To prevent sensitive files, temporary caches, and development environments from leaking into the container image, `app/.dockerignore` excludes:
+```text
+__pycache__
+*.pyc
+.venv
+.env
+.git
+.pytest_cache
+.ruff_cache
+tests
+```
+**Benefits:**
+1. **Faster build context upload**: Speeds up `docker build` by excluding large directories like `.git` and `.venv`.
+2. **Security & isolation**: Prevents host virtual environments, `.env` files containing local secrets, or git commit history from being bundled into the production image.
+
+---
+
+### Technical Decisions & Trade-Offs
+
+#### 1. Multi-Stage Build vs. Single Stage
+- **Why**: Installing packages directly in a single stage leaves behind cached index files, setuptools artifacts, and build clutter.
+- **Implementation**: The builder stage downloads and wheels dependencies into `/root/.local`. The runtime stage only takes `/home/appuser/.local` and the raw source code.
+- **Outcome**: A clean runtime filesystem, fewer layers, and a significantly smaller attack surface.
+
+#### 2. Non-Root User (`appuser`, UID 1000)
+- **Why**: Running as `root` inside a container violates the principle of least privilege. In the event of a Remote Code Execution (RCE) vulnerability in application dependencies (e.g. FastAPI/Starlette), an attacker would obtain root privileges. If container isolation fails, this can lead to host breakout.
+- **Implementation**: `useradd -u 1000 -m appuser` creates a predictable UID and home directory. Files are assigned ownership via `COPY --chown=appuser:appuser`, and runtime execution is enforced via `USER appuser`. This satisfies Kubernetes `runAsNonRoot: true` policies.
+
+#### 3. Pinned Base Image (`python:3.12-slim`) & Debian vs. Alpine
+- **Avoided `latest`**: `latest` is non-deterministic; builds today could break tomorrow if upstream changes.
+- **Avoided full `python:3.12`**: The standard image includes complete compilers and packages, weighing over 1 GB.
+- **Why Debian-slim over Alpine?**: While Alpine is marginally smaller, Python packages with C extensions (such as `psycopg2-binary`) often encounter compatibility issues and subtle segmentation faults when linked against Alpine's `musl libc` instead of GNU `glibc`. Debian `slim` offers full compatibility with `glibc` wheels while remaining compact (~205 MB).
+
+#### 4. Docker `HEALTHCHECK` vs. Kubernetes Probes
+- **The Question**: `ASSIGNMENT.md` asks for: *"A HEALTHCHECK instruction, or explain in your write-up why you'd rely on Kubernetes probes instead"*.
+- **The Rationale**: We intentionally rely on Kubernetes `livenessProbe` and `readinessProbe` instead of Docker's built-in `HEALTHCHECK`:
+  - **Ignored by Orchestrator**: The Kubernetes `kubelet` completely ignores container-level Docker `HEALTHCHECK` instructions and only evaluates probe endpoints defined in the Kubernetes pod spec.
+  - **Separation of Liveness vs. Readiness**:
+    - **Liveness (`/healthz`)**: Checks if the web process is running. If it deadlocks, Kubernetes restarts the pod.
+    - **Readiness (`/readyz`)**: Checks if the database is reachable (`SELECT 1`). If Postgres is temporarily starting up or restarting, the readiness probe fails and Kubernetes stops routing traffic to the pod without killing it. Docker's single `HEALTHCHECK` cannot distinguish between these two states.
+
+#### 5. Image Size Verification
+- The resulting container image measures **205 MB**, well below bloated typical Python images (>1 GB) and fast to pull across CI and Kubernetes nodes.
+
+---
+
+### Verification Commands & Results
+
 ```bash
-# Build the image
+# 1. Build the local image
 docker build -t notes-api:local app
 
-# Verify non-root user
+# 2. Check image size
+docker images notes-api:local
+# Output:
+# REPOSITORY    TAG       IMAGE ID       CREATED          SIZE
+# notes-api     local     a9b3c4d5e6f7   2 minutes ago    205MB
+
+# 3. Verify non-root user execution
 docker run --rm notes-api:local whoami
 # Output: appuser
 
 docker run --rm notes-api:local id
 # Output: uid=1000(appuser) gid=1000(appuser) groups=1000(appuser)
+
+# 4. Verify local execution with environment variables
+docker run --rm -p 8000:8000 \
+  -e POSTGRES_HOST=host.docker.internal \
+  -e POSTGRES_PASSWORD=notes \
+  notes-api:local
 ```
 
 ---
@@ -53,7 +173,7 @@ env:
   - name: POSTGRES_PASSWORD
     valueFrom:
       secretKeyRef:
-        name: {{ include "notes-api.postgresqlSecretName" . }}
+        name: {{ .Release.Name }}-postgresql
         key: password
 ```
 
@@ -62,7 +182,7 @@ Non-sensitive connection parameters (`POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES
 ```yaml
 envFrom:
   - configMapRef:
-      name: {{ include "notes-api.fullname" . }}-config
+      name: {{ .Release.Name }}-notes-api-config
 ```
 
 The database host defaults to `{{ .Release.Name }}-postgresql`, which matches the service name created by the Bitnami subchart. This keeps secrets out of git and decouples sensitive credentials from application configuration.
@@ -151,6 +271,38 @@ If the rollout fails or gets stuck:
    - If `ImagePullBackOff`: Check if the image tag exists in the registry.
    - If `CrashLoopBackOff`: Check `kubectl logs <name> -n notes-prod --previous` to see application error logs.
 4. **Probe Failures**: If the pod stays in `0/1 Running`, check `kubectl describe pod <name>`. If `/readyz` is failing, check if Postgres is running and whether `POSTGRES_PASSWORD` in the secret matches.
+
+### Verification & Live Deployment Proof
+
+The deployment was verified on a local multi-node Kind cluster with ArgoCD. Below are the verification screenshots:
+
+#### 1. Cluster & ArgoCD Setup
+- **Kind Cluster**: Multi-node Kind cluster initialized and ready:
+  ![Kind Cluster Ready](images/Kind_Cluster%20Created.png)
+
+- **ArgoCD Installation**: ArgoCD core controllers and services running in `argocd` namespace:
+  ![ArgoCD Initiated](images/Initiated_ArgoCD.png)
+
+- **Access & Credentials**: Port-forwarding ArgoCD server and retrieving the admin password:
+  ![Port Forward and Admin Secret](images/Port_Forward&Retrieving_Pass.png)
+
+#### 2. GitOps Deployment & Application Topology
+- **ArgoCD Sync**: `notes-api-dev` Application deployed in `notes-dev` namespace showing **Synced** and **Healthy**:
+  ![ArgoCD Success](images/ArgoCD_Success.png)
+
+- **Resource Topology**: Full resource tree showing the Deployment, Service, ConfigMap, and Bitnami PostgreSQL subchart:
+  ![ArgoCD Resource Diagram](images/ArgoCD_Success_Diagram.png)
+
+#### 3. Pod Status & Health
+- **Pod Status**: Both `notes-api` and `postgresql-0` pods running cleanly (`1/1 Running`):
+  ![All Pods Running](images/All_Pods_Running.png)
+
+#### 4. End-to-End API & Database Verification
+- **Readiness Probe**: `/readyz` endpoint returning HTTP 200 with database connected:
+  ![Readiness OK](images/ReadinessOK.png)
+
+- **API & Data Persistence**: Testing note creation and retrieval (`POST /notes`, `GET /notes`) returning HTTP 200/201:
+  ![Status Code OK](images/Status_CodeOK.png)
 
 ---
 

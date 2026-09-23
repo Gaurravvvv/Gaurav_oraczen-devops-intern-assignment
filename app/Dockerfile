@@ -1,4 +1,3 @@
-# Build stage
 FROM python:3.12-slim AS builder
 
 WORKDIR /app
@@ -6,12 +5,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
-# Runtime stage
 FROM python:3.12-slim
 
 WORKDIR /app
 
-# Run as non-root user
+# Non-root user
 RUN useradd -u 1000 -m appuser
 
 COPY --from=builder /root/.local /home/appuser/.local

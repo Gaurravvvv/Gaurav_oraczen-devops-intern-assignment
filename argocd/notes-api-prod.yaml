@@ -20,7 +20,7 @@ spec:
     namespace: notes-prod
   syncPolicy:
     automated:
-      prune: false     # Safer for prod: prevents accidental cascade deletion of persistent storage or secrets
-      selfHeal: true   # Remediates configuration drift back to git source of truth
+      prune: false     # Prevent accidental resource deletion in prod
+      selfHeal: true   # Auto-revert drift back to git state
     syncOptions:
       - CreateNamespace=true
