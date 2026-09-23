@@ -37,6 +37,8 @@ config:
 # Bitnami PostgreSQL subchart configuration
 postgresql:
   enabled: true
+  image:
+    tag: "latest"
   auth:
     database: notes
     username: notes
