@@ -215,17 +215,16 @@ On merges to `main`, authenticates keylessly using the built-in `GITHUB_TOKEN` a
     scan-type: 'config'
     scan-ref: 'rendered.yaml'
     format: 'table'
-    exit-code: '0'
+    exit-code: '1'
     severity: 'CRITICAL,HIGH'
 ```
-Validates Helm chart syntax and dependencies, renders Kubernetes manifests using `values-prod.yaml`, and executes Trivy in `config` mode to detect infrastructure-as-code misconfigurations (such as root containers or missing resource limits).
+Validates Helm chart syntax and dependencies, renders Kubernetes manifests using `values-prod.yaml`, and executes Trivy in `config` mode with a strict `exit-code: '1'` severity gate to block any infrastructure-as-code misconfigurations (such as root containers, privilege escalation, or missing resource limits).
 
 ---
 
 ### Decisions & Trade-offs
-- **Strict Severity Gate (`exit-code: 1`):** Enforcing a pipeline failure on `CRITICAL,HIGH` prevents shipping vulnerable images to production. We paired this with `ignore-unfixed: true` to avoid failing builds on upstream CVEs that do not yet have an available fix.
+- **Strict Severity Gates Across Image and IaC (`exit-code: 1`):** Both the container vulnerability scan and the Helm IaC config scan enforce an immediate pipeline failure on `CRITICAL,HIGH` findings. This ensures zero unvetted security misconfigurations reach the cluster or registry. For container CVEs, this is paired with `ignore-unfixed: true` to prevent blocking on upstream vulnerabilities that lack a vendor patch.
 - **Three Independent Parallel Jobs:** Splitting the pipeline into `lint`, `docker-build-scan`, and `helm-lint-scan` speeds up execution by parallelizing checks and provides clear, immediate feedback on where a failure occurred without digging into long unified logs.
-- **IaC Static Analysis (Shift-Left Security):** Scanning rendered Kubernetes YAML with `trivy config` catches security anti-patterns (e.g. privilege escalation, missing limits) before manifests are deployed to the cluster.
 - **Automated GHCR Push on Main:** Pushing to GHCR was optional in the assignment, but wiring it up with `${{ secrets.GITHUB_TOKEN }}` ensures that the GitOps controller (ArgoCD) always pulls verified, scanned images.
 
 ---

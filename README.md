@@ -108,7 +108,7 @@ Built a GitHub Actions workflow in `.github/workflows/ci.yaml` that runs automat
 ### What I did:
 - **Lint job**: Installs dependencies and runs `ruff check app/` to enforce Python code quality.
 - **Docker Build & Scan job**: Builds the image tagged with the commit SHA, runs Trivy vulnerability scan with a strict severity gate (`exit-code: 1` on `CRITICAL,HIGH`), and pushes the verified image to GitHub Container Registry (GHCR) on `main`.
-- **Helm Lint & Scan job**: Builds chart dependencies, lints the chart, renders manifests, and runs Trivy in `config` mode to catch Kubernetes misconfigurations.
+- **Helm Lint & Scan job**: Builds chart dependencies, lints the chart, renders manifests, and runs Trivy in `config` mode with a strict severity gate (`exit-code: 1` on `CRITICAL,HIGH`) to catch and block Kubernetes misconfigurations.
 
 ### Verification:
 All three jobs run in parallel and pass cleanly in GitHub Actions (see green status in `WRITEUP.md`).
