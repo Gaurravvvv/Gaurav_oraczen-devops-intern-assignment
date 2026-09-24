@@ -224,6 +224,7 @@ Validates Helm chart syntax and dependencies, renders Kubernetes manifests using
 
 ### Decisions & Trade-offs
 - **Strict Severity Gates Across Image and IaC (`exit-code: 1`):** Both the container vulnerability scan and the Helm IaC config scan enforce an immediate pipeline failure on `CRITICAL,HIGH` findings. This ensures zero unvetted security misconfigurations reach the cluster or registry. For container CVEs, this is paired with `ignore-unfixed: true` to prevent blocking on upstream vulnerabilities that lack a vendor patch.
+- **Hardened Kubernetes Security Context:** To satisfy Trivy's IaC security gate (`KSV-0014`) under `exit-code: 1`, our Deployment enforces `readOnlyRootFilesystem: true`, `allowPrivilegeEscalation: false`, `runAsNonRoot: true`, and drops all Linux kernel capabilities (`drop: [ALL]`), paired with an in-memory `emptyDir` volume at `/tmp` for scratchpad operations.
 - **Three Independent Parallel Jobs:** Splitting the pipeline into `lint`, `docker-build-scan`, and `helm-lint-scan` speeds up execution by parallelizing checks and provides clear, immediate feedback on where a failure occurred without digging into long unified logs.
 - **Automated GHCR Push on Main:** Pushing to GHCR was optional in the assignment, but wiring it up with `${{ secrets.GITHUB_TOKEN }}` ensures that the GitOps controller (ArgoCD) always pulls verified, scanned images.
 

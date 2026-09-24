@@ -104,31 +104,43 @@ Provides sane defaults for local development:
 27:         - name: notes-api
 28:           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
 29:           imagePullPolicy: {{ .Values.image.pullPolicy }}
-30:           ports:
-31:             - containerPort: {{ .Values.service.port }}
-32:           envFrom:
-33:             - configMapRef:
-34:                 name: {{ .Release.Name }}-notes-api-config
-35:           env:
-36:             - name: POSTGRES_PASSWORD
-37:               valueFrom:
-38:                 secretKeyRef:
-39:                   name: {{ .Release.Name }}-postgresql
-40:                   key: password
-41:           resources:
-42:             {{- toYaml .Values.resources | nindent 12 }}
-43:           livenessProbe:
-44:             httpGet:
-45:               path: {{ .Values.probes.liveness.path }}
-46:               port: {{ .Values.service.port }}
-47:             initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
-48:             periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
-49:           readinessProbe:
-50:             httpGet:
-51:               path: {{ .Values.probes.readiness.path }}
-52:               port: {{ .Values.service.port }}
-53:             initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
-54:             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+30:           securityContext:
+31:             readOnlyRootFilesystem: true
+32:             allowPrivilegeEscalation: false
+33:             capabilities:
+34:               drop:
+35:                 - ALL
+36:           volumeMounts:
+37:             - name: tmp
+38:               mountPath: /tmp
+39:           ports:
+40:             - containerPort: {{ .Values.service.port }}
+41:           envFrom:
+42:             - configMapRef:
+43:                 name: {{ .Release.Name }}-notes-api-config
+44:           env:
+45:             - name: POSTGRES_PASSWORD
+46:               valueFrom:
+47:                 secretKeyRef:
+48:                   name: {{ .Release.Name }}-postgresql
+49:                   key: password
+50:           resources:
+51:             {{- toYaml .Values.resources | nindent 12 }}
+52:           livenessProbe:
+53:             httpGet:
+54:               path: {{ .Values.probes.liveness.path }}
+55:               port: {{ .Values.service.port }}
+56:             initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+57:             periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+58:           readinessProbe:
+59:             httpGet:
+60:               path: {{ .Values.probes.readiness.path }}
+61:               port: {{ .Values.service.port }}
+62:             initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+63:             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+64:       volumes:
+65:         - name: tmp
+66:           emptyDir: {}
 ```
 
 ### Detailed Lines Breakdown:
@@ -138,9 +150,15 @@ Provides sane defaults for local development:
   * *Why this is critical:* When Horizontal Pod Autoscaling (HPA) is enabled, the HPA controller dynamically adjusts `spec.replicas`. If the Deployment manifest explicitly sets `replicas: 3`, every time ArgoCD or Helm syncs, it would fight with the HPA, constantly resetting the replica count back to 3 and creating a scaling loop. Omitting `replicas` when HPA is active cedes replica management to the autoscaler.
 * **Line 12–15 (`selector.matchLabels`):** Defines the label selector the Kubernetes Deployment controller uses to find and manage its ReplicaSet and Pods.
 * **Line 22 (`serviceAccountName: {{ .Release.Name }}-notes-api`):** Binds the pod to a dedicated ServiceAccount rather than `default`. Limits the pod's API server privileges.
-* **Line 23–25 (`securityContext`):**
+* **Line 23–25 (`pod.spec.securityContext`):**
   * `runAsNonRoot: true`: Forces the kubelet container runtime to validate that the image's entrypoint user is not UID 0. If an image attempts to run as root, the kubelet halts pod startup with a `CreateContainerConfigError`.
   * `runAsUser: 1000`: Matches the unprivileged user created in our Dockerfile (`appuser`).
+* **Line 30–35 (`container.securityContext` - Trivy KSV-0014 Remediation):**
+  * `readOnlyRootFilesystem: true`: Makes the container root filesystem immutable. Attackers cannot tamper with files or inject malware binaries.
+  * `allowPrivilegeEscalation: false`: Prevents child processes from gaining more privileges than their parent process.
+  * `capabilities.drop: [ALL]`: Drops all default Linux kernel capabilities.
+* **Line 36–38 & 64–66 (`volumeMounts` & `volumes.emptyDir`):**
+  * Mounts a writable scratchpad at `/tmp` so Python/Uvicorn can write temporary files without violating `readOnlyRootFilesystem`.
 * **Line 28 (`image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"`):** Dynamically stitches together the registry, repo name, and version tag.
 * **Line 32–34 (`envFrom.configMapRef`):** Injects non-sensitive environment variables (`POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`) in bulk from the ConfigMap.
 * **Line 35–40 (`env.POSTGRES_PASSWORD` with `secretKeyRef`):**
