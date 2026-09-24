@@ -7,6 +7,43 @@ Technical documentation covering containerization, Helm packaging with PostgreSQ
 
 ---
 
+## Tech Stack
+
+- **Application & Framework:** Python 3.12, FastAPI, SQLAlchemy, Uvicorn, Pydantic, Psycopg2
+- **Containerization:** Docker (Multi-stage build, Debian-slim, non-root user `appuser` UID 1000)
+- **Database:** PostgreSQL (via community subchart)
+- **Packaging & Orchestration:** Kubernetes, Helm v3, Horizontal Pod Autoscaler (HPA)
+- **Local Cluster:** Kind (Kubernetes in Docker)
+- **CI / DevSecOps:** GitHub Actions, Ruff, Aqua Trivy (Container & IaC misconfiguration scanning), GHCR
+- **GitOps:** ArgoCD (declarative GitOps controller)
+
+---
+
+## Local Tooling Setup (`.bin`)
+
+To ensure a self-contained local developer experience without altering global system binaries, local versions of `kind` and `helm` were placed in a `.bin/` directory:
+
+```bash
+# 1. Create local binary directory
+mkdir .bin
+
+# 2. Download Kind (Windows)
+curl -Lo .bin/kind.exe https://kind.sigs.k8s.io/dl/v0.24.0/kind-windows-amd64.exe
+
+# 3. Download Helm (Windows)
+# Download from https://get.helm.sh or winget install Helm.Helm and place helm.exe into .bin/
+
+# 4. Add .bin to current session PATH
+$env:PATH = "$PWD\.bin;" + $env:PATH    # PowerShell
+# set PATH=%CD%\.bin;%PATH%             # CMD
+
+# 5. Verify local tooling
+kind version
+helm version
+```
+
+---
+
 ## Part 1 — Containerize the App
 
 ### Dockerfile & Image Build

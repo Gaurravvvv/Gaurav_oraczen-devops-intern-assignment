@@ -9,6 +9,44 @@ This repository contains my complete implementation for the Notes API DevOps ass
 
 ---
 
+## Tech Stack
+
+- **Application & Framework:** Python 3.12, FastAPI, SQLAlchemy, Uvicorn, Pydantic
+- **Containerization:** Docker (Multi-stage build, non-root user `appuser` UID 1000)
+- **Database:** PostgreSQL (via community subchart)
+- **Packaging & Orchestration:** Kubernetes, Helm v3, HPA (Horizontal Pod Autoscaler)
+- **Local Cluster:** Kind (Kubernetes in Docker)
+- **CI / DevSecOps:** GitHub Actions, Ruff, Aqua Trivy (Vulnerability & IaC config scanning), GHCR
+- **GitOps:** ArgoCD
+
+---
+
+## Prerequisites & Local Tooling Setup (`.bin`)
+
+To keep local tools isolated without polluting system-wide paths, standalone binaries for `kind` and `helm` were placed in a `.bin/` folder (configured in `.gitignore`):
+
+### Commands:
+```bash
+# 1. Create a local .bin folder
+mkdir .bin
+
+# 2. Download Kind (Windows)
+curl -Lo .bin/kind.exe https://kind.sigs.k8s.io/dl/v0.24.0/kind-windows-amd64.exe
+
+# 3. Download Helm (Windows)
+# Download from https://get.helm.sh or winget install Helm.Helm and place helm.exe into .bin/
+
+# 4. Add .bin to session PATH
+$env:PATH = "$PWD\.bin;" + $env:PATH    # PowerShell
+# set PATH=%CD%\.bin;%PATH%             # CMD
+
+# 5. Verify versions
+kind version
+helm version
+```
+
+---
+
 ## Step 1: Containerizing the Application (Part 1)
 
 I containerized the FastAPI application using a multi-stage Docker build to keep the image small and secure.
