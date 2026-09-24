@@ -11,13 +11,14 @@ This repository contains my complete implementation for the Notes API DevOps ass
 
 ## Tech Stack
 
-- **Application & Framework:** Python 3.12, FastAPI, SQLAlchemy, Uvicorn, Pydantic
-- **Containerization:** Docker (Multi-stage build, non-root user `appuser` UID 1000)
-- **Database:** PostgreSQL (via community subchart)
-- **Packaging & Orchestration:** Kubernetes, Helm v3, HPA (Horizontal Pod Autoscaler)
-- **Local Cluster:** Kind (Kubernetes in Docker)
-- **CI / DevSecOps:** GitHub Actions, Ruff, Aqua Trivy (Vulnerability & IaC config scanning), GHCR
-- **GitOps:** ArgoCD
+- **FastAPI (Python 3.12)** — Backend application
+- **Docker** — Multi-stage containerization
+- **Helm v3** — Kubernetes packaging
+- **Kind** — Local Kubernetes cluster
+- **GitHub Actions** — CI pipeline
+- **Trivy** — Vulnerability & IaC security scanning
+- **GHCR** — Container registry
+- **ArgoCD** — GitOps deployment
 
 ---
 

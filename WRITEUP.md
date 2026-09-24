@@ -9,13 +9,14 @@ Technical documentation covering containerization, Helm packaging with PostgreSQ
 
 ## Tech Stack
 
-- **Application & Framework:** Python 3.12, FastAPI, SQLAlchemy, Uvicorn, Pydantic, Psycopg2
-- **Containerization:** Docker (Multi-stage build, Debian-slim, non-root user `appuser` UID 1000)
-- **Database:** PostgreSQL (via community subchart)
-- **Packaging & Orchestration:** Kubernetes, Helm v3, Horizontal Pod Autoscaler (HPA)
-- **Local Cluster:** Kind (Kubernetes in Docker)
-- **CI / DevSecOps:** GitHub Actions, Ruff, Aqua Trivy (Container & IaC misconfiguration scanning), GHCR
-- **GitOps:** ArgoCD (declarative GitOps controller)
+- **FastAPI (Python 3.12)** — Backend application
+- **Docker** — Multi-stage containerization
+- **Helm v3** — Kubernetes packaging
+- **Kind** — Local Kubernetes cluster
+- **GitHub Actions** — CI pipeline
+- **Trivy** — Vulnerability & IaC security scanning
+- **GHCR** — Container registry
+- **ArgoCD** — GitOps deployment
 
 ---
 
